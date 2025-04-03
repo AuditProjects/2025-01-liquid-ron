@@ -42,7 +42,7 @@ contract LiquidRonTest is Test {
     function test_deposit_no_func_call(uint88 _amount) public {
         vm.assume(_amount >= 0.01 ether);
         uint256 pre = wrappedRon.balanceOf(address(liquidRon));
-        (bool res, ) = payable(liquidRon).call{value: _amount}("");
+        (bool res,) = payable(liquidRon).call{value: _amount}("");
         assertTrue(res);
         assertEq(liquidRon.balanceOf(address(this)), _amount);
         assertEq(wrappedRon.balanceOf(address(liquidRon)), pre + _amount);
@@ -150,6 +150,51 @@ contract LiquidRonTest is Test {
         uint256 postl = liquidRon.balanceOf(address(this));
         assertTrue(prel - postl == 390 ether);
         assertTrue(post - pre == assets);
+    }
+
+    // @poc-h1
+    function test_withdraw_new_user() public {
+        address user1 = address(0xf1);
+        address user2 = address(0xf2);
+
+        uint256 amount = 100000 ether;
+        vm.deal(user1, amount);
+        vm.deal(user2, amount);
+
+        vm.prank(user1);
+        liquidRon.deposit{value: amount}();
+
+        uint256 delegateAmount = amount / 7;
+        uint256[] memory amounts = new uint256[](5);
+        for (uint256 i = 0; i < 5; i++) {
+            amounts[i] = delegateAmount;
+        }
+        liquidRon.delegateAmount(0, amounts, consensusAddrs);
+
+        skip(86400 * 365 + 2 + 1);
+        // operator fee before harvest
+        assertTrue(liquidRon.operatorFeeAmount() == 0);
+        liquidRon.harvest(0, consensusAddrs);
+        // operator fee after harvest
+        assertTrue(liquidRon.operatorFeeAmount() > 0);
+
+        // new user deposit
+        vm.prank(user2);
+        liquidRon.deposit{value: amount}();
+        uint256 user2Shares = liquidRon.balanceOf(user2);
+        uint256 expectedRedeemAmount = liquidRon.previewRedeem(user2Shares);
+
+        // fee withdrawal by operator
+        liquidRon.fetchOperatorFee();
+        assertTrue(liquidRon.operatorFeeAmount() == 0);
+
+        // user2 redeem all his shares
+        vm.prank(user2);
+        liquidRon.redeem(user2Shares, user2, user2);
+
+        console.log(user2.balance);
+        console.log(expectedRedeemAmount);
+        assertTrue(user2.balance == expectedRedeemAmount);
     }
 
     receive() external payable {}

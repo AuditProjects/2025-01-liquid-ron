@@ -118,6 +118,7 @@ contract LiquidRon is ERC4626, RonHelper, Pausable, ValidatorTracker {
     }
 
     /// @dev Withdraws the operator fee to the fee recipient
+    // @report-h1 这里如果提走 operatorFeeAmount
     function fetchOperatorFee() external {
         if (msg.sender != feeRecipient) revert ErrNotFeeRecipient();
         uint256 amount = operatorFeeAmount;
@@ -290,6 +291,7 @@ contract LiquidRon is ERC4626, RonHelper, Pausable, ValidatorTracker {
     }
 
     /// @dev Gets the total amount of assets the vault controls
+    // @report-h1 totalAssets 中包含 operatorFeeAmount
     function totalAssets() public view override returns (uint256) {
         return super.totalAssets() + getTotalStaked() + getTotalRewards();
     }
@@ -318,7 +320,7 @@ contract LiquidRon is ERC4626, RonHelper, Pausable, ValidatorTracker {
         address _receiver,
         address _owner
     ) public override whenNotPaused returns (uint256) {
-        uint256 assets = super.redeem(_shares, address(this), _owner);
+        uint256 assets = super.redeem(_shares, address(this), _owner); // ERC4626 redeem
         _withdrawRONTo(_receiver, assets);
         emit Withdraw(msg.sender, _receiver, _owner, assets, _shares);
         return assets;
